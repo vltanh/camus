@@ -41,6 +41,7 @@ type Format int
 const (
 	Newick Format = iota
 	Nexus
+	QuartetCounts // CSV counts; the constraint tree is read normally
 
 	plotH = 4 * vg.Inch
 	plotW = 6 * vg.Inch
@@ -89,6 +90,9 @@ func ReadInputFiles(treeFile, genetreesFile string, format Format) (*tree.Tree, 
 	tre, err := readTreeFile(treeFile)
 	if err != nil {
 		return nil, nil, err
+	}
+	if format == QuartetCounts {
+		return tre, &GeneTrees{}, nil
 	}
 	genetrees, err := readGeneTreesFile(genetreesFile, format)
 	if err != nil {

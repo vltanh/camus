@@ -159,6 +159,7 @@ func parseArgs() Args {
 	hhelp := flag.Bool("hh", false, "prints help with experimental features and exits")
 	ver := flag.Bool("v", false, "prints version number and exits")
 	nprocs := flag.Int("n", 0, "number of parallel processes")
+	quartetCounts := flag.Bool("quartet-counts", false, "second input is CSV: a,b,c,d,count for topology a,b|c,d")
 	flag.Parse()
 	if *help {
 		Usage(false)
@@ -182,6 +183,13 @@ func parseArgs() Args {
 	qOpts, err := pr.SetQuartetFilterOptions(*mode, *thresh)
 	if err != nil {
 		parserError(err.Error())
+	}
+	if *quartetCounts {
+		if *scoreMode != "max" || *supp != 0 {
+			parserError("quartet counts require -sm max and -s 0")
+		}
+		format = pr.QuartetCounts
+		qOpts.CountsFile = flag.Arg(1)
 	}
 	inferOpts, err := in.MakeInferOptions(*nprocs, qOpts, *supp, scorer, *asSet, *alpha)
 	if err != nil {

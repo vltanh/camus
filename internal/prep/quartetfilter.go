@@ -11,8 +11,9 @@ import (
 
 // Options for quartet filter mode
 type QuartetFilterOptions struct {
-	mode      QMode     // mode (value between 0 and 1)
-	threshold Threshold // threshold for filtering [0, 1]
+	CountsFile string    // optional weighted-quartet CSV instead of gene trees
+	mode       QMode     // mode (value between 0 and 1)
+	threshold  Threshold // threshold for filtering [0, 1]
 }
 
 func SetQuartetFilterOptions(mode int, threshold float64) (QuartetFilterOptions, error) {

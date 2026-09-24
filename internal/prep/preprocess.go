@@ -37,11 +37,17 @@ func Preprocess(tre *tree.Tree, geneTrees []*tree.Tree, nprocs int, opts Quartet
 	if !TreeIsBinary(tre) {
 		return nil, fmt.Errorf("constraint tree is %w", ErrNonBinary)
 	}
-	if percent := percentNoSupport(geneTrees); percent != 0 && minSupp != 0 {
+	if percent := percentNoSupport(geneTrees); len(geneTrees) > 0 && percent != 0 && minSupp != 0 {
 		log.Printf("WARNING: %.2f%% of gene tree edges do not have support values", percent)
 	}
 	log.Printf("reading quartets from gene trees")
-	qCounts, err := processQuartets(geneTrees, tre, minSupp, nprocs)
+	var qCounts map[gr.Quartet]uint32
+	var err error
+	if opts.CountsFile != "" {
+		qCounts, err = readQuartetCounts(opts.CountsFile, tre)
+	} else {
+		qCounts, err = processQuartets(geneTrees, tre, minSupp, nprocs)
+	}
 	if err != nil {
 		return nil, err
 	}
