@@ -84,6 +84,43 @@ binaries compiled for Windows, macOS, and Linux (for both arm64 and amd64).
 
 ## Usage
 
+### Fractional quartet weights in this fork
+
+For fixed nonnegative evidence weights, use the separate weighted input mode:
+
+```sh
+go build -o bin/camus-weighted .
+bin/camus-weighted -quartet-weights -q 0 -sm max -s 0 \
+  -o weighted constraint.nwk weights.csv
+```
+
+The CSV header is `a,b,c,d,weight`; each row represents topology `a,b|c,d`.
+Weights are finite nonnegative floating-point numbers. Equivalent topology rows
+are combined by addition, zero weights are ignored, and weights are never rounded
+to integer counts. For example:
+
+```csv
+a,b,c,d,weight
+A,C,B,D,0.75
+A,D,B,C,0.125
+```
+
+This mode maximizes the sum of weights of displayed quartets. It requires
+`-q 0 -sm max -s 0` and cannot be combined with `-quartet-counts` or `-asSet`.
+Apply any count-based or learned filtering before writing this input; the existing
+gene-tree and integer-count modes retain their original behavior.
+
+As in count mode, quartets already displayed by the constraint tree are removed
+before scoring reticulations. The output CSV keeps its existing columns;
+`Quartet Satisfied Percent` is the fraction of the remaining total **weight**
+satisfied by the added reticulations. A zero remaining weight produces only the
+constraint tree. Logs report total remaining weight. Floating-point scores use
+the existing DP comparisons; differences at rounding precision can break ties.
+Positive weights, even small ones, can favor additional reticulations, so apply
+the intended reticulation-count selection when comparing experimental variants.
+
+### Standard input
+
 ```text
 camus [ -f <format> | -o <output> | -t <threshold> | -n <threads> | -h | -v | ... ] <const_tree> <gene_trees>
 ```

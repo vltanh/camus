@@ -160,6 +160,7 @@ func parseArgs() Args {
 	ver := flag.Bool("v", false, "prints version number and exits")
 	nprocs := flag.Int("n", 0, "number of parallel processes")
 	quartetCounts := flag.Bool("quartet-counts", false, "second input is CSV: a,b,c,d,count for topology a,b|c,d")
+	quartetWeights := flag.Bool("quartet-weights", false, "second input is CSV: a,b,c,d,weight; requires -q 0 -sm max -s 0")
 	flag.Parse()
 	if *help {
 		Usage(false)
@@ -183,6 +184,16 @@ func parseArgs() Args {
 	qOpts, err := pr.SetQuartetFilterOptions(*mode, *thresh)
 	if err != nil {
 		parserError(err.Error())
+	}
+	if *quartetCounts && *quartetWeights {
+		parserError("quartet-counts and quartet-weights are mutually exclusive")
+	}
+	if *quartetWeights {
+		if *scoreMode != "max" || *supp != 0 || *mode != 0 || *asSet {
+			parserError("quartet weights require -sm max, -q 0, -s 0, and no -asSet")
+		}
+		format = pr.QuartetWeights
+		qOpts.WeightsFile = flag.Arg(1)
 	}
 	if *quartetCounts {
 		if *scoreMode != "max" || *supp != 0 {

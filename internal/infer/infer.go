@@ -78,10 +78,23 @@ func Infer(tre *tree.Tree, geneTrees []*tree.Tree, opts InferOptions) (*DPResult
 	var dp dpRunner
 	switch scorer := opts.ScoreMode.(type) {
 	case *sc.MaximizeScorer:
-		dp, err = newDP(scorer, td, opts.NProcs, sc.AsSet(opts.AsSet))
+		if td.HasQuartetWeights() {
+			if opts.AsSet {
+				return nil, fmt.Errorf("quartet weights cannot be scored as a set")
+			}
+			dp, err = newDP(&sc.WeightedMaximizeScorer{}, td, opts.NProcs)
+		} else {
+			dp, err = newDP(scorer, td, opts.NProcs, sc.AsSet(opts.AsSet))
+		}
 	case *sc.NormalizedScorer:
+		if td.HasQuartetWeights() {
+			return nil, fmt.Errorf("quartet weights require max scoring")
+		}
 		dp, err = newDP(scorer, td, opts.NProcs, sc.AsSet(opts.AsSet), sc.WithNGtrees(len(geneTrees)))
 	case *sc.SymDiffScorer:
+		if td.HasQuartetWeights() {
+			return nil, fmt.Errorf("quartet weights require max scoring")
+		}
 		dp, err = newDP(scorer, td, opts.NProcs, sc.AsSet(true), sc.WithAlpha(opts.Alpha))
 	default:
 		panic(fmt.Sprintf("unsupported scorer type %T", scorer))

@@ -3,6 +3,8 @@
 package graphs
 
 import (
+	"slices"
+
 	"github.com/bits-and-blooms/bitset"
 	"github.com/evolbioinfo/gotree/tree"
 )
@@ -14,6 +16,7 @@ type TreeData struct {
 	IdToNodes      []*tree.Node        // Mapping between id and node pointer
 	quartetSet     [][]Quartet         // Quartets relevant for each subtree
 	quartetCounts  *map[Quartet]uint32 // Count of each unique quartet topology
+	quartetWeights map[Quartet]float64 // Optional evidence weights, separate from observed counts
 	Depths         []int               // Distance from all nodes to the root
 	NumLeavesBelow []uint64            // Number of leaves below node
 	NLeaves        int                 // Number of leaves
@@ -194,7 +197,7 @@ func countLeavesBelow(tre *tree.Tree, children [][]*tree.Node) []uint64 {
 }
 
 // Maps quartets to vertices where at least 3 taxa from the quartet exist below the vertex
-func mapQuartetsToVertices(tre *tree.Tree, qCounts map[Quartet]uint32, leafsets []*bitset.BitSet) [][]Quartet {
+func mapQuartetsToVertices[V uint32 | float64](tre *tree.Tree, qCounts map[Quartet]V, leafsets []*bitset.BitSet) [][]Quartet {
 	qSets := make([][]Quartet, len(tre.Nodes()))
 	n, err := tre.NbTips()
 	if err != nil {
@@ -303,7 +306,39 @@ func (td *TreeData) TotalNumQuartets() uint32 {
 }
 
 func (td *TreeData) TotalNumUniqueQuartets() uint32 {
+	if td.quartetWeights != nil {
+		return uint32(len(td.quartetWeights))
+	}
 	return uint32(len(*td.quartetCounts))
+}
+
+// MakeWeightedTreeData indexes fixed quartet weights without converting them to counts.
+// Input weights must already be finite, nonnegative, and zero-free.
+func MakeWeightedTreeData(tre *tree.Tree, weights map[Quartet]float64) *TreeData {
+	td := MakeTreeData(tre, nil)
+	td.quartetWeights = weights
+	td.quartetSet = mapQuartetsToVertices(tre, weights, td.leafsets)
+	// Stable summation order avoids dependence on randomized map iteration.
+	for _, quartets := range td.quartetSet {
+		slices.Sort(quartets)
+	}
+	return td
+}
+
+func (td *TreeData) HasQuartetWeights() bool {
+	return td.quartetWeights != nil
+}
+
+func (td *TreeData) QuartetWeight(q Quartet) float64 {
+	return td.quartetWeights[q]
+}
+
+func (td *TreeData) TotalQuartetWeight() float64 {
+	var total float64
+	for _, q := range td.Quartets(td.Root().Id()) {
+		total += td.quartetWeights[q]
+	}
+	return total
 }
 
 func (td *TreeData) Clone() *TreeData {

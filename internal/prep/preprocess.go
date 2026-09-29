@@ -37,6 +37,25 @@ func Preprocess(tre *tree.Tree, geneTrees []*tree.Tree, nprocs int, opts Quartet
 	if !TreeIsBinary(tre) {
 		return nil, fmt.Errorf("constraint tree is %w", ErrNonBinary)
 	}
+	if opts.WeightsFile != "" {
+		if opts.CountsFile != "" || opts.mode != 0 || minSupp != 0 {
+			return nil, fmt.Errorf("quartet weights require no count input, quartet filtering, or support collapse")
+		}
+		weights, err := readQuartetWeights(opts.WeightsFile, tre)
+		if err != nil {
+			return nil, err
+		}
+		treeQuartets, err := gr.QuartetsFromTree(tre.Clone(), tre)
+		if err != nil {
+			return nil, err
+		}
+		for q := range treeQuartets {
+			delete(weights, q)
+		}
+		td := gr.MakeWeightedTreeData(tre, weights)
+		log.Printf("%d weighted quartet topologies not in the constraint tree; total weight %.17g", len(weights), td.TotalQuartetWeight())
+		return td, nil
+	}
 	if percent := percentNoSupport(geneTrees); len(geneTrees) > 0 && percent != 0 && minSupp != 0 {
 		log.Printf("WARNING: %.2f%% of gene tree edges do not have support values", percent)
 	}
