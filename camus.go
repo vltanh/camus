@@ -161,6 +161,8 @@ func parseArgs() Args {
 	nprocs := flag.Int("n", 0, "number of parallel processes")
 	quartetCounts := flag.Bool("quartet-counts", false, "second input is CSV: a,b,c,d,count for topology a,b|c,d")
 	quartetWeights := flag.Bool("quartet-weights", false, "second input is CSV: a,b,c,d,weight; requires -q 0 -sm max -s 0")
+	signedWeights := flag.Bool("signed-weights", false, "allow negative quartet weights; output raw signed gain")
+	signedMax := flag.Int("signed-max-reticulations", -1, "maximum reticulations considered in signed search (-1: uncapped)")
 	flag.Parse()
 	if *help {
 		Usage(false)
@@ -188,12 +190,17 @@ func parseArgs() Args {
 	if *quartetCounts && *quartetWeights {
 		parserError("quartet-counts and quartet-weights are mutually exclusive")
 	}
+	if *signedWeights && (!*quartetWeights || *signedMax < -1) {
+		parserError("signed weights require -quartet-weights and a cap of -1 (uncapped) or greater")
+	}
 	if *quartetWeights {
 		if *scoreMode != "max" || *supp != 0 || *mode != 0 || *asSet {
 			parserError("quartet weights require -sm max, -q 0, -s 0, and no -asSet")
 		}
 		format = pr.QuartetWeights
 		qOpts.WeightsFile = flag.Arg(1)
+		qOpts.SignedWeights = *signedWeights
+		qOpts.MaxReticulations = *signedMax
 	}
 	if *quartetCounts {
 		if *scoreMode != "max" || *supp != 0 {
@@ -279,7 +286,11 @@ func run(args Args) error {
 	for i, branches := range results.Branches {
 		newicks[i] = gr.MakeNetwork(results.Tree, branches).Newick()
 	}
-	if err = pr.WriteDPResultsToCSV(results.Tree, newicks, results.QSatScore, os.Stdout); err != nil {
+	writeResults := pr.WriteDPResultsToCSV
+	if args.inferOpts.QuartetOpts.SignedWeights {
+		writeResults = pr.WriteSignedDPResultsToCSV
+	}
+	if err = writeResults(results.Tree, newicks, results.QSatScore, os.Stdout); err != nil {
 		return err
 	}
 	f, err := os.Create(fmt.Sprintf("%s.csv", args.prefix))
@@ -292,8 +303,11 @@ func run(args Args) error {
 			log.Printf("error closing %s.csv, %s", args.prefix, closeErr)
 		}
 	}()
-	if err = pr.WriteDPResultsToCSV(results.Tree, newicks, results.QSatScore, f); err != nil {
+	if err = writeResults(results.Tree, newicks, results.QSatScore, f); err != nil {
 		return err
+	}
+	if args.inferOpts.QuartetOpts.SignedWeights {
+		return nil
 	}
 	if err = pr.WriteResultsLineplot(results.QSatScore, args.prefix); err != nil {
 		return err

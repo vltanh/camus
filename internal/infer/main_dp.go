@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/evolbioinfo/gotree/tree"
 
@@ -25,6 +26,8 @@ type DP[S sc.Score] struct {
 	Tree      *gr.TreeData // preprocessed data for our constraint tree
 	NumNodes  int          // number of nodes
 	Scorer    sc.Scorer[S] // scorer
+	Capped    bool         // retain exact-cardinality states despite score plateaus
+	MaxEdges  int
 }
 
 // Stores DP info for lookups corresponding to a given vertex v
@@ -44,6 +47,10 @@ func (cdp *cycleDP[S]) update(prevK int, dp *DP[S]) {
 			cdp.traceNodes[cur.Id()] = make([]*cycleTraceNode, 0)
 		}
 		cdp.grow(cur.Id())
+		if dp.Capped && prevK > 0 {
+			// A missing path state is infeasible, not zero-gain spare budget.
+			cdp.scores[cur.Id()][prevK] = S(math.Inf(-1))
+		}
 		if len(cdp.scores[cur.Id()])-1 != prevK {
 			panic(fmt.Sprintf("wrong size cycle dp tables: len %d, k %d", len(cdp.scores), prevK))
 		}
@@ -139,6 +146,9 @@ func (dp *DP[S]) solve(v *tree.Node) ([]S, []trace) {
 		traceNodes: make([][]*cycleTraceNode, dp.NumNodes),
 	}
 	for k := 1; ; k++ {
+		if dp.Capped && k > dp.MaxEdges {
+			break
+		}
 		var score S
 		var backtrace trace
 		if noEdgeScore, noEdgeTrace, err := dp.scoreNoAddEdgeK(lID, rID, k); err == nil {
@@ -147,7 +157,7 @@ func (dp *DP[S]) solve(v *tree.Node) ([]S, []trace) {
 		if edgeScore, edgeTrace, err := dp.scoreAddEdgeK(v, k, &vCycleDP); err == nil && edgeScore > score {
 			score, backtrace = edgeScore, edgeTrace
 		}
-		if backtrace == nil || scores[k-1] >= score {
+		if backtrace == nil || (!dp.Capped && scores[k-1] >= score) {
 			break
 		}
 		scores = append(scores, score)
@@ -155,7 +165,7 @@ func (dp *DP[S]) solve(v *tree.Node) ([]S, []trace) {
 		if k == dp.NumNodes*dp.NumNodes {
 			panic("runaway loop")
 		}
-		if scores[k] <= scores[k-1] {
+		if !dp.Capped && scores[k] <= scores[k-1] {
 			panic("score did not strictly improve")
 		}
 		if len(scores) != len(traces) || len(scores) != k && len(scores) != k+1 {

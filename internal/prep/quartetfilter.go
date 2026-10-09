@@ -11,10 +11,12 @@ import (
 
 // Options for quartet filter mode
 type QuartetFilterOptions struct {
-	CountsFile  string    // optional quartet-count CSV instead of gene trees
-	WeightsFile string    // optional fractional quartet-weight CSV, without count filtering
-	mode        QMode     // mode (value between 0 and 1)
-	threshold   Threshold // threshold for filtering [0, 1]
+	CountsFile       string    // optional quartet-count CSV instead of gene trees
+	WeightsFile      string    // optional fractional quartet-weight CSV, without count filtering
+	SignedWeights    bool      // permit negative evidence and report raw signed gain
+	MaxReticulations int       // signed search evaluates every budget; -1 means uncapped
+	mode             QMode     // mode (value between 0 and 1)
+	threshold        Threshold // threshold for filtering [0, 1]
 }
 
 func SetQuartetFilterOptions(mode int, threshold float64) (QuartetFilterOptions, error) {

@@ -41,7 +41,7 @@ func Preprocess(tre *tree.Tree, geneTrees []*tree.Tree, nprocs int, opts Quartet
 		if opts.CountsFile != "" || opts.mode != 0 || minSupp != 0 {
 			return nil, fmt.Errorf("quartet weights require no count input, quartet filtering, or support collapse")
 		}
-		weights, err := readQuartetWeights(opts.WeightsFile, tre)
+		weights, err := readEvidenceWeights(opts.WeightsFile, tre, opts.SignedWeights)
 		if err != nil {
 			return nil, err
 		}

@@ -12,6 +12,7 @@ import (
 // with fixed floating-point evidence weights in place of occurrence counts.
 type WeightedMaximizeScorer struct {
 	totals [][]float64
+	Signed bool
 }
 
 func (s *WeightedMaximizeScorer) Init(td *gr.TreeData, nprocs int, opts ...ScoreOptions) error {
@@ -70,6 +71,9 @@ func (s WeightedMaximizeScorer) PercentQuartetSat(branches []gr.Branch, td *gr.T
 			return 0, fmt.Errorf("node ids [%d, %d] out of range %d", u, w, len(s.totals))
 		}
 		matched += s.totals[u][w]
+	}
+	if s.Signed {
+		return matched, nil // Raw gain; a signed-weight sum is not a percentage denominator.
 	}
 	total := td.TotalQuartetWeight()
 	if total == 0 {

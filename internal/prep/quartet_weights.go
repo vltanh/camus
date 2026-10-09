@@ -17,6 +17,10 @@ import (
 // Each row gives a fixed, nonnegative weight for topology a,b|c,d.
 // Equivalent topology rows are canonicalized and summed without integer rounding.
 func readQuartetWeights(path string, tre *tree.Tree) (map[gr.Quartet]float64, error) {
+	return readEvidenceWeights(path, tre, false)
+}
+
+func readEvidenceWeights(path string, tre *tree.Tree, signed bool) (map[gr.Quartet]float64, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -63,7 +67,7 @@ func readQuartetWeights(path string, tre *tree.Tree) (map[gr.Quartet]float64, er
 			ids[i] = int16(id)
 		}
 		weight, err := strconv.ParseFloat(strings.TrimSpace(row[fields["weight"]]), 64)
-		if err != nil || math.IsNaN(weight) || math.IsInf(weight, 0) || weight < 0 {
+		if err != nil || math.IsNaN(weight) || math.IsInf(weight, 0) || (!signed && weight < 0) {
 			return nil, fmt.Errorf("line %d: weight must be a finite nonnegative number", line)
 		}
 		if weight == 0 {
@@ -75,6 +79,9 @@ func readQuartetWeights(path string, tre *tree.Tree) (map[gr.Quartet]float64, er
 			return nil, fmt.Errorf("line %d: accumulated quartet weight is not finite", line)
 		}
 		weights[q] = total
+		if total == 0 {
+			delete(weights, q)
+		}
 	}
 	keys := make([]gr.Quartet, 0, len(weights))
 	for q := range weights {

@@ -82,7 +82,21 @@ func Infer(tre *tree.Tree, geneTrees []*tree.Tree, opts InferOptions) (*DPResult
 			if opts.AsSet {
 				return nil, fmt.Errorf("quartet weights cannot be scored as a set")
 			}
-			dp, err = newDP(&sc.WeightedMaximizeScorer{}, td, opts.NProcs)
+			weightedDP, weightedErr := newDP(&sc.WeightedMaximizeScorer{Signed: opts.QuartetOpts.SignedWeights}, td, opts.NProcs)
+			if weightedErr == nil && opts.QuartetOpts.SignedWeights {
+				if opts.QuartetOpts.MaxReticulations < -1 {
+					return nil, fmt.Errorf("signed reticulation cap must be -1 (uncapped) or greater")
+				}
+				weightedDP.Capped = true
+				weightedDP.MaxEdges = opts.QuartetOpts.MaxReticulations
+				if weightedDP.MaxEdges == -1 {
+					// Vertex-disjoint cycles each occupy constraint-tree vertices.
+					// This structural bound cannot exclude a feasible solution;
+					// exact-cardinality DP otherwise continues until infeasible.
+					weightedDP.MaxEdges = weightedDP.NumNodes
+				}
+			}
+			dp, err = weightedDP, weightedErr
 		} else {
 			dp, err = newDP(scorer, td, opts.NProcs, sc.AsSet(opts.AsSet))
 		}

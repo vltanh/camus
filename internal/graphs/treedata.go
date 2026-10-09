@@ -313,7 +313,7 @@ func (td *TreeData) TotalNumUniqueQuartets() uint32 {
 }
 
 // MakeWeightedTreeData indexes fixed quartet weights without converting them to counts.
-// Input weights must already be finite, nonnegative, and zero-free.
+// Input weights must already be finite and zero-free; signed mode allows negatives.
 func MakeWeightedTreeData(tre *tree.Tree, weights map[Quartet]float64) *TreeData {
 	td := MakeTreeData(tre, nil)
 	td.quartetWeights = weights

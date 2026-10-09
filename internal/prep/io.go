@@ -244,11 +244,19 @@ func ConvertToNetwork(ntw *tree.Tree) (network *gr.Network, err error) {
 //
 // There are three columns: "Number of Branches", "Quartet Satisfied Percent", "Extended Newick"
 func WriteDPResultsToCSV(td *gr.TreeData, newicks []string, qsat []float64, w io.Writer) (err error) {
+	return writeDPResultsToCSV(td, newicks, qsat, w, "Quartet Satisfied Percent")
+}
+
+func WriteSignedDPResultsToCSV(td *gr.TreeData, newicks []string, scores []float64, w io.Writer) error {
+	return writeDPResultsToCSV(td, newicks, scores, w, "Signed Quartet Gain")
+}
+
+func writeDPResultsToCSV(td *gr.TreeData, newicks []string, qsat []float64, w io.Writer, scoreColumn string) (err error) {
 	if len(newicks) != len(qsat) {
 		panic(fmt.Sprintf("there should be a set of branches for every optimal score, %+v %+v", newicks, qsat))
 	}
 	data := make([][]string, len(newicks)+2)
-	data[0] = []string{"Number of Branches", "Quartet Satisfied Percent", "Extended Newick"}
+	data[0] = []string{"Number of Branches", scoreColumn, "Extended Newick"}
 	data[1] = []string{strconv.FormatInt(0, 10), strconv.FormatFloat(0, 'f', -1, 64), td.Newick()}
 	for i := range len(newicks) {
 		data[i+2] = []string{
