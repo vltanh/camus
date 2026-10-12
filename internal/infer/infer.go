@@ -88,6 +88,10 @@ func Infer(tre *tree.Tree, geneTrees []*tree.Tree, opts InferOptions) (*DPResult
 					return nil, fmt.Errorf("signed reticulation cap must be -1 (uncapped) or greater")
 				}
 				weightedDP.Capped = true
+				weightedDP.StopOnPlateau = opts.QuartetOpts.StopOnPlateau
+				if weightedDP.StopOnPlateau {
+					log.Println("signed search: stop each subproblem at its first non-improvement")
+				}
 				weightedDP.MaxEdges = opts.QuartetOpts.MaxReticulations
 				if weightedDP.MaxEdges == -1 {
 					// Vertex-disjoint cycles each occupy constraint-tree vertices.

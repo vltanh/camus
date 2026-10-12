@@ -15,6 +15,7 @@ type QuartetFilterOptions struct {
 	WeightsFile      string    // optional fractional quartet-weight CSV, without count filtering
 	SignedWeights    bool      // permit negative evidence and report raw signed gain
 	MaxReticulations int       // signed search evaluates every budget; -1 means uncapped
+	StopOnPlateau    bool      // heuristic: stop each signed DP subproblem at its first non-improvement
 	mode             QMode     // mode (value between 0 and 1)
 	threshold        Threshold // threshold for filtering [0, 1]
 }
@@ -28,7 +29,7 @@ func SetQuartetFilterOptions(mode int, threshold float64) (QuartetFilterOptions,
 	if err := t.Set(threshold); err != nil {
 		return QuartetFilterOptions{}, err
 	}
-	return QuartetFilterOptions{mode: m, threshold: t}, nil
+	return QuartetFilterOptions{mode: m, threshold: t, StopOnPlateau: true}, nil
 }
 
 func (opts QuartetFilterOptions) QuartetFilterOff() bool {

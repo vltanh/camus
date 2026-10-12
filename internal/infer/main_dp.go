@@ -21,13 +21,14 @@ var ErrNoValidSplit = errors.New("no valid split")
 
 // Stores main dp algorithm data
 type DP[S sc.Score] struct {
-	DP        [][]S        // score for each dp subproblem (DP[v][k])
-	Traceback [][]trace    // traceback for each dp subproblem (Traceback[v][k])
-	Tree      *gr.TreeData // preprocessed data for our constraint tree
-	NumNodes  int          // number of nodes
-	Scorer    sc.Scorer[S] // scorer
-	Capped    bool         // retain exact-cardinality states despite score plateaus
-	MaxEdges  int
+	DP            [][]S        // score for each dp subproblem (DP[v][k])
+	Traceback     [][]trace    // traceback for each dp subproblem (Traceback[v][k])
+	Tree          *gr.TreeData // preprocessed data for our constraint tree
+	NumNodes      int          // number of nodes
+	Scorer        sc.Scorer[S] // scorer
+	Capped        bool         // exact-cardinality feasibility and reticulation cap
+	MaxEdges      int
+	StopOnPlateau bool // stop each subproblem at its first non-improvement
 }
 
 // Stores DP info for lookups corresponding to a given vertex v
@@ -154,10 +155,15 @@ func (dp *DP[S]) solve(v *tree.Node) ([]S, []trace) {
 		if noEdgeScore, noEdgeTrace, err := dp.scoreNoAddEdgeK(lID, rID, k); err == nil {
 			score, backtrace = noEdgeScore, noEdgeTrace
 		}
-		if edgeScore, edgeTrace, err := dp.scoreAddEdgeK(v, k, &vCycleDP); err == nil && edgeScore > score {
+		if edgeScore, edgeTrace, err := dp.scoreAddEdgeK(v, k, &vCycleDP); err == nil &&
+			!math.IsInf(float64(edgeScore), -1) &&
+			(edgeScore > score || (dp.Capped && backtrace == nil)) {
+			// In exact-cardinality search, zero is not a feasible default for
+			// k>0. Retain the best finite negative/zero state when no alternative
+			// trace exists; -Inf path states still mean infeasible.
 			score, backtrace = edgeScore, edgeTrace
 		}
-		if backtrace == nil || (!dp.Capped && scores[k-1] >= score) {
+		if backtrace == nil || ((!dp.Capped || dp.StopOnPlateau) && scores[k-1] >= score) {
 			break
 		}
 		scores = append(scores, score)
@@ -165,7 +171,7 @@ func (dp *DP[S]) solve(v *tree.Node) ([]S, []trace) {
 		if k == dp.NumNodes*dp.NumNodes {
 			panic("runaway loop")
 		}
-		if !dp.Capped && scores[k] <= scores[k-1] {
+		if (!dp.Capped || dp.StopOnPlateau) && scores[k] <= scores[k-1] {
 			panic("score did not strictly improve")
 		}
 		if len(scores) != len(traces) || len(scores) != k && len(scores) != k+1 {

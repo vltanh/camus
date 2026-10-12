@@ -113,12 +113,119 @@ func TestSignedCapContinuesAfterCardinalityPlateau(t *testing.T) {
 	dp.Capped = true
 	dp.MaxEdges = dp.NumNodes // Uncapped: only the constraint tree's structural bound.
 	result := dp.RunDP()
-	if len(result.QSatScore) != 3 {
+	if len(result.QSatScore) < 3 {
 		t.Fatalf("lost cardinality states: %v", result.QSatScore)
 	}
 	for i, want := range []float64{10, 8, 12} {
 		if result.QSatScore[i] != want {
 			t.Fatalf("k=%d: gain %g, want %g", i+1, result.QSatScore[i], want)
+		}
+	}
+	// The opt-in CAMUS stopping rule deliberately skips the later rebound.
+	stopped, err := newDP[float64](plateauScorer{}, td, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stopped.Capped, stopped.MaxEdges, stopped.StopOnPlateau = true, stopped.NumNodes, true
+	short := stopped.RunDP()
+	if len(short.QSatScore) != 1 || short.QSatScore[0] != 10 {
+		t.Fatalf("early stop retained a non-improving state: %v", short.QSatScore)
+	}
+}
+
+type constantSignedScorer float64
+
+func (constantSignedScorer) Init(*gr.TreeData, int, ...sc.ScoreOptions) error { return nil }
+func (s constantSignedScorer) CalcScore(int, int, *gr.TreeData) float64       { return float64(s) }
+func (s constantSignedScorer) PercentQuartetSat(branches []gr.Branch, _ *gr.TreeData) (float64, error) {
+	return float64(s) * float64(len(branches)), nil
+}
+
+func TestExactCardinalityRetainsNonpositiveStates(t *testing.T) {
+	dir := t.TempDir()
+	treePath, countPath := filepath.Join(dir, "tree.nwk"), filepath.Join(dir, "empty.csv")
+	if err := os.WriteFile(treePath, []byte("(A,(B,(C,(D,(E,F)))));\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(countPath, []byte("a,b,c,d,count\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, gain := range []float64{-1, 0} {
+		tre, genes, err := pr.ReadInputFiles(treePath, countPath, pr.QuartetCounts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts, err := pr.SetQuartetFilterOptions(0, .5)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts.CountsFile = countPath
+		td, err := pr.Preprocess(tre, genes.Trees, 1, opts, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dp, err := newDP[float64](constantSignedScorer(gain), td, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dp.Capped, dp.MaxEdges = true, 2
+		result := dp.RunDP()
+		if len(result.Branches) != 2 {
+			t.Fatalf("gain %g discarded finite exact states: %v", gain, result.QSatScore)
+		}
+		for i, branches := range result.Branches {
+			if len(branches) != i+1 || result.QSatScore[i] != gain*float64(i+1) {
+				t.Fatalf("invalid exact state k=%d: %v gain %g", i+1, branches, result.QSatScore[i])
+			}
+			_ = gr.MakeNetwork(result.Tree, branches).Newick()
+		}
+		stopped, err := newDP[float64](constantSignedScorer(gain), td, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stopped.Capped, stopped.MaxEdges, stopped.StopOnPlateau = true, 2, true
+		if short := stopped.RunDP(); len(short.Branches) != 0 {
+			t.Fatalf("gain %g: early stop should return the starting tree: %v", gain, short.QSatScore)
+		}
+	}
+}
+
+func TestSignedEarlyStopRespectsPositivePrefixAndCap(t *testing.T) {
+	dir := t.TempDir()
+	treePath, countPath := filepath.Join(dir, "tree.nwk"), filepath.Join(dir, "empty.csv")
+	if err := os.WriteFile(treePath, []byte("(A,(B,(C,(D,(E,F)))));\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(countPath, []byte("a,b,c,d,count\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tre, genes, err := pr.ReadInputFiles(treePath, countPath, pr.QuartetCounts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts, err := pr.SetQuartetFilterOptions(0, .5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.CountsFile = countPath
+	td, err := pr.Preprocess(tre, genes.Trees, 1, opts, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cap := range []int{0, 1, 2} {
+		dp, err := newDP[float64](constantSignedScorer(1), td, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dp.Capped, dp.MaxEdges, dp.StopOnPlateau = true, cap, true
+		result := dp.RunDP()
+		if len(result.Branches) != cap {
+			t.Fatalf("cap %d: got %v", cap, result.QSatScore)
+		}
+		for i, gain := range result.QSatScore {
+			if gain != float64(i+1) || len(result.Branches[i]) != i+1 {
+				t.Fatalf("incorrect positive prefix: %v", result.QSatScore)
+			}
 		}
 	}
 }

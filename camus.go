@@ -163,6 +163,7 @@ func parseArgs() Args {
 	quartetWeights := flag.Bool("quartet-weights", false, "second input is CSV: a,b,c,d,weight; requires -q 0 -sm max -s 0")
 	signedWeights := flag.Bool("signed-weights", false, "allow negative quartet weights; output raw signed gain")
 	signedMax := flag.Int("signed-max-reticulations", -1, "maximum reticulations considered in signed search (-1: uncapped)")
+	signedStop := flag.Bool("signed-stop-on-plateau", true, "stop signed DP at first non-improvement; set false for exhaustive cardinality search")
 	flag.Parse()
 	if *help {
 		Usage(false)
@@ -193,6 +194,13 @@ func parseArgs() Args {
 	if *signedWeights && (!*quartetWeights || *signedMax < -1) {
 		parserError("signed weights require -quartet-weights and a cap of -1 (uncapped) or greater")
 	}
+	if !*signedWeights {
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "signed-stop-on-plateau" && *signedStop {
+				parserError("signed-stop-on-plateau requires -signed-weights")
+			}
+		})
+	}
 	if *quartetWeights {
 		if *scoreMode != "max" || *supp != 0 || *mode != 0 || *asSet {
 			parserError("quartet weights require -sm max, -q 0, -s 0, and no -asSet")
@@ -201,6 +209,7 @@ func parseArgs() Args {
 		qOpts.WeightsFile = flag.Arg(1)
 		qOpts.SignedWeights = *signedWeights
 		qOpts.MaxReticulations = *signedMax
+		qOpts.StopOnPlateau = *signedStop
 	}
 	if *quartetCounts {
 		if *scoreMode != "max" || *supp != 0 {
