@@ -41,9 +41,9 @@ func (s *WeightedMaximizeScorer) Init(td *gr.TreeData, nprocs int, opts ...Score
 					continue
 				}
 				v := td.LCA(u, w)
-				wSub := getWSubtree(u, w, v, td)
+				edge := newEdgeQuartetScorer(u, w, td)
 				for _, q := range td.Quartets(v) {
-					if QuartetScore(q, td.IdToNodes[u], td.IdToNodes[w], td.IdToNodes[v], wSub, td) == gr.Qeq {
+					if edge.matches(q) {
 						s.totals[u][w] += td.QuartetWeight(q)
 					}
 				}

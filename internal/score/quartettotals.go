@@ -77,11 +77,10 @@ func CycleLength(u, w int, td *gr.TreeData) int {
 // a specific edge
 func quartetsTotal(u, w int, td *gr.TreeData, asSet bool) uint64 {
 	v := td.LCA(u, w)
-	uNode, wNode, vNode := td.IdToNodes[u], td.IdToNodes[w], td.IdToNodes[v]
 	var total uint64
-	wSub := getWSubtree(u, w, v, td)
+	edge := newEdgeQuartetScorer(u, w, td)
 	for _, q := range td.Quartets(v) {
-		if QuartetScore(q, uNode, wNode, vNode, wSub, td) == gr.Qeq {
+		if edge.matches(q) {
 			if asSet {
 				total += 1
 			} else {

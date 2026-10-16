@@ -1,6 +1,7 @@
 package graphs
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -8,6 +9,67 @@ import (
 	"github.com/evolbioinfo/gotree/io/newick"
 	"github.com/evolbioinfo/gotree/tree"
 )
+
+func TestQuartetIndexMatchesIndependentFullScanAndSharesIdenticalLists(t *testing.T) {
+	for _, nwk := range []string{"(OUT,(((A,B),(C,D)),(E,(F,G))));", "(OUT,((((((A,B),C),D),E),F),G));"} {
+		tre, err := newick.NewParser(strings.NewReader(nwk)).Parse()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tre.UpdateTipIndex(); err != nil {
+			t.Fatal(err)
+		}
+		for i, n := range tre.Nodes() {
+			n.SetId(i)
+		}
+		observed, err := QuartetsFromTree(tre.Clone(), tre)
+		if err != nil {
+			t.Fatal(err)
+		}
+		counts := map[Quartet]uint32{}
+		for q := range observed {
+			for _, alternate := range q.AllQuartets() {
+				counts[alternate] = 1
+			}
+		}
+		td := MakeTreeData(tre, counts)
+		for _, node := range tre.Nodes() {
+			want := []Quartet{}
+			for q := range counts {
+				found := 0
+				for i := range 4 {
+					if td.leafsets[node.Id()].Test(uint(q.Taxon(i))) {
+						found++
+					}
+				}
+				if found >= 3 {
+					want = append(want, q)
+				}
+			}
+			slices.Sort(want)
+			got := td.Quartets(node.Id())
+			if !slices.Equal(got, want) {
+				t.Fatalf("node %d index differs from full scan", node.Id())
+			}
+			if cap(got) != len(got) {
+				t.Fatalf("node %d retains unused quartet capacity", node.Id())
+			}
+		}
+		root := td.Quartets(tre.Root().Id())
+		shared := false
+		for _, child := range td.Children[tre.Root().Id()] {
+			if !child.Tip() {
+				childSet := td.Quartets(child.Id())
+				if len(childSet) == len(root) && &childSet[0] == &root[0] {
+					shared = true
+				}
+			}
+		}
+		if !shared {
+			t.Fatal("identical root/outgroup-side lists were copied")
+		}
+	}
+}
 
 func TestMakeTreeData(t *testing.T) {
 	testCases := []struct {

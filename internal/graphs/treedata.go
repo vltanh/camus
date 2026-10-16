@@ -203,25 +203,59 @@ func mapQuartetsToVertices[V uint32 | float64](tre *tree.Tree, qCounts map[Quart
 	if err != nil {
 		panic(err)
 	}
-	tre.PostOrder(func(cur, prev *tree.Node, e *tree.Edge) (keep bool) {
-		qSets[cur.Id()] = make([]Quartet, 0)
-		for q := range qCounts {
-			found := 0
-			for i := range 4 {
-				if q.Taxon(i) >= uint16(n) {
-					panic("cannot map quartet taxa to constraint tree")
-				} else if leafsets[cur.Id()].Test(uint(q.Taxon(i))) {
-					// } else if leafsets[cur.Id()][q.Taxa[i]] {
-					found++
+	root := make([]Quartet, 0, len(qCounts))
+	for q := range qCounts {
+		for i := range 4 {
+			if q.Taxon(i) >= uint16(n) {
+				panic("cannot map quartet taxa to constraint tree")
+			}
+		}
+		root = append(root, q)
+	}
+	// Filtering a globally sorted parent preserves the exact weighted summation
+	// order without repeatedly sorting overlapping lists at every tree node.
+	slices.Sort(root)
+	qSets[tre.Root().Id()] = root
+	tre.PreOrder(func(cur, prev *tree.Node, e *tree.Edge) bool {
+		if cur == tre.Root() || leafsets[cur.Id()].Count() < 3 {
+			return true
+		}
+		parent := qSets[prev.Id()]
+		leaves := leafsets[cur.Id()]
+		count := 0
+		for _, q := range parent {
+			if threeTaxaBelow(q, leaves) {
+				count++
+			}
+		}
+		if count == len(parent) {
+			// Immutable identical lists, e.g. around the outgroup split, share
+			// storage instead of duplicating millions of quartet IDs.
+			qSets[cur.Id()] = parent
+		} else {
+			selected := make([]Quartet, count)
+			at := 0
+			for _, q := range parent {
+				if threeTaxaBelow(q, leaves) {
+					selected[at] = q
+					at++
 				}
 			}
-			if found >= 3 {
-				qSets[cur.Id()] = append(qSets[cur.Id()], q)
-			}
+			qSets[cur.Id()] = selected
 		}
 		return true
 	})
 	return qSets
+}
+
+func threeTaxaBelow(q Quartet, leaves *bitset.BitSet) bool {
+	found := 0
+	for i := range 4 {
+		if leaves.Test(uint(q.Taxon(i))) {
+			found++
+		}
+	}
+	return found >= 3
 }
 
 func makeTipIndexMap(tre *tree.Tree) map[uint16]int {
@@ -318,10 +352,6 @@ func MakeWeightedTreeData(tre *tree.Tree, weights map[Quartet]float64) *TreeData
 	td := MakeTreeData(tre, nil)
 	td.quartetWeights = weights
 	td.quartetSet = mapQuartetsToVertices(tre, weights, td.leafsets)
-	// Stable summation order avoids dependence on randomized map iteration.
-	for _, quartets := range td.quartetSet {
-		slices.Sort(quartets)
-	}
 	return td
 }
 
